@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Change an invoice number to see what happens when ownership goes unchecked.">
+  <meta name="theme-color" content="#f5f6fa">
+  <title>IDOR · Ghurir</title>
+  <link rel="icon" type="image/png" href="./assets/icon.png">
+  <link rel="stylesheet" href="./assets/styles.css">
+  <script defer src="./assets/labs.js"></script>
+  <script defer src="./assets/sandbox.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="brand" href="./index.html">
+        <span class="brand-mark" aria-hidden="true">&gt;_</span>
+        <span>Ghurir</span>
+      </a>
+      <nav class="site-nav" aria-label="Main navigation">
+        <a href="./index.html">Home</a>
+        <a href="./idor.html" aria-current="page">IDOR</a>
+        <a href="./open-redirect.html">Open Redirect</a>
+        <a href="./race-condition.html">Race Condition</a>
+      </nav>
+    </div>
+  </header>
+  <main id="main" class="wrap lab-page">
+    <a class="back-link" href="./index.html#labs"><span aria-hidden="true">←</span> All labs</a>
+    <header class="lab-intro">
+      <h1>Insecure Direct Object Reference</h1>
+      <p>IDOR happens when an app uses an ID you supply to look up a record without checking whether you can access it. Changing that ID can reveal somebody else’s record.</p>
+      <ul class="classification" aria-label="Vulnerability classification">
+        <li><a href="https://top10.owasp.org/2025/A01_2025-Broken_Access_Control/" target="_blank" rel="noopener">OWASP A01:2025 Broken Access Control</a></li>
+        <li><a href="https://cwe.mitre.org/data/definitions/639.html" target="_blank" rel="noopener">CWE-639</a></li>
+      </ul>
+    </header>
+
+    <section class="sandbox" data-sandbox="idor" data-mode="vulnerable" aria-labelledby="try-title">
+      <div class="sandbox-header">
+        <div>
+          <h2 id="try-title">Try it</h2>
+          <p>You are viewer U-01 and own invoice #101. Try the other invoices, then switch modes and replay the same request. Requests are processed in this browser; no backend request is sent.</p>
+        </div>
+        <div class="mode-picker" role="group" aria-label="Simulation mode">
+          <button type="button" data-mode-button="vulnerable" aria-pressed="true">Vulnerable</button>
+          <button type="button" data-mode-button="fixed" aria-pressed="false">Fixed</button>
+        </div>
+      </div>
+      <div class="sandbox-grid">
+        <div class="actions-panel">
+          <h3>Payloads</h3>
+          <button type="button" class="payload-button" data-payload="102" data-selected="false">
+            <span class="payload-name">Open invoice #102 <span aria-hidden="true">→</span></span>
+            <code>GET /invoices/102</code>
+          </button>
+          <button type="button" class="payload-button" data-payload="103" data-selected="false">
+            <span class="payload-name">Open invoice #103 <span aria-hidden="true">→</span></span>
+            <code>GET /invoices/103</code>
+          </button>
+          <button type="button" class="payload-button" data-payload="999" data-selected="false">
+            <span class="payload-name">Open a missing invoice <span aria-hidden="true">→</span></span>
+            <code>GET /invoices/999</code>
+          </button>
+          <button type="button" class="payload-button" data-payload="not-a-number" data-selected="false">
+            <span class="payload-name">Send an invalid invoice ID <span aria-hidden="true">→</span></span>
+            <code>GET /invoices/not-a-number</code>
+          </button>
+          <h3 class="normal-heading">Normal use</h3>
+          <button type="button" class="payload-button normal-button" data-payload="101" data-selected="false">
+            <span class="payload-name">Open my invoice <span aria-hidden="true">→</span></span>
+            <code>GET /invoices/101</code>
+          </button>
+        </div>
+        <div class="result-panel" data-response aria-busy="false">
+          <div class="result-heading">
+            <h3>Result</h3>
+            <span class="result-tools"><button type="button" class="reset-button" data-reset>Reset</button><span class="badge" data-status data-tone="neutral">Ready</span></span>
+          </div>
+          <div class="result-summary" role="status" aria-live="polite" aria-atomic="true">
+            <h4 data-result-title>Run a payload</h4>
+            <p data-result-detail>The request and its outcome will appear here.</p>
+          </div>
+          <div class="request-panel" data-request hidden>
+            <h4 data-request-label>Simulated request</h4>
+            <pre><code data-request-text></code></pre>
+          </div>
+          <div class="result-data" data-result-data></div>
+        </div>
+      </div>
+      <noscript><p class="noscript-note">Enable JavaScript to run the simulation.</p></noscript>
+    </section>
+
+    <section class="code-section" aria-labelledby="code-title">
+      <h2 id="code-title">Compare the code</h2>
+      <div class="code-grid">
+        <figure class="code-card" data-code-kind="vulnerable">
+          <figcaption>
+            <h3>Vulnerable code</h3>
+            <p>Returning the record here skips the ownership check. A valid invoice ID is enough to read it.</p>
+          </figcaption>
+          <pre tabindex="0" aria-label="Vulnerable code example"><code><span class="code-line"><span class="line-number" aria-hidden="true">1</span><span>async function viewInvoice(req, res) {</span></span>
+        <span class="code-line"><span class="line-number" aria-hidden="true">2</span><span>  const viewerId = req.session.userId;</span></span>
+        <span class="code-line"><span class="line-number" aria-hidden="true">3</span><span>  const id = Number(req.params.id);</span></span>
+        <span class="code-line"><span class="line-number" aria-hidden="true">4</span><span>  if (!Number.isInteger(id)) {</span></span>
+        <span class="code-line"><span class="line-number" aria-hidden="true">5</span><span>    return res.sendStatus(400);</span></span>
+        <span class="code-line"><span class="line-number" aria-hidden="true">6</span><span>  }</span></span>
+        <span class="code-line"><span class="line-number" aria-hidden="true">7</span><span>  const invoice = await invoices.findById(id);</span></span>
+        <span class="code-line"><span class="line-number" aria-hidden="true">8</span><span>  if (!invoice) return res.sendStatus(404);</span></span>
+        <span class="code-line highlighted"><span class="line-number" aria-hidden="true">9</span><span>  return res.json(invoice);</span></span>
+        <span class="code-line"><span class="line-number" aria-hidden="true">10</span><span>}</span></span></code></pre>
+        </figure>
+        <figure class="code-card" data-code-kind="fixed">
+          <figcaption>
+            <h3>Fixed code</h3>
+            <p>Check who owns the invoice before returning it. The same foreign invoice ID now receives a 403 response.</p>
+          </figcaption>
+          <pre tabindex="0" aria-label="Fixed code example"><code><span class="code-line"><span class="line-number" aria-hidden="true">1</span><span>async function viewInvoice(req, res) {</span></span>
+        <span class="code-line"><span class="line-number" aria-hidden="true">2</span><span>  const viewerId = req.session.userId;</span></span>
+        <span class="code-line"><span class="line-number" aria-hidden="true">3</span><span>  const id = Number(req.params.id);</span></span>
+        <span class="code-line"><span class="line-number" aria-hidden="true">4</span><span>  if (!Number.isInteger(id)) {</span></span>
+        <span class="code-line"><span class="line-number" aria-hidden="true">5</span><span>    return res.sendStatus(400);</span></span>
+        <span class="code-line"><span class="line-number" aria-hidden="true">6</span><span>  }</span></span>
+        <span class="code-line"><span class="line-number" aria-hidden="true">7</span><span>  const invoice = await invoices.findById(id);</span></span>
+        <span class="code-line"><span class="line-number" aria-hidden="true">8</span><span>  if (!invoice) return res.sendStatus(404);</span></span>
+        <span class="code-line highlighted"><span class="line-number" aria-hidden="true">9</span><span>  if (invoice.ownerId !== viewerId) {</span></span>
+        <span class="code-line"><span class="line-number" aria-hidden="true">10</span><span>    return res.sendStatus(403);</span></span>
+        <span class="code-line"><span class="line-number" aria-hidden="true">11</span><span>  }</span></span>
+        <span class="code-line"><span class="line-number" aria-hidden="true">12</span><span>  return res.json(invoice);</span></span>
+        <span class="code-line"><span class="line-number" aria-hidden="true">13</span><span>}</span></span></code></pre>
+        </figure>
+      </div>
+    </section>
+
+    <section class="impact-section" aria-labelledby="impact-title">
+      <h2 id="impact-title">Why it matters</h2>
+      <p>An attacker could read private orders or documents by changing their IDs.</p>
+      <section class="case-study" id="real-world-case" aria-labelledby="case-title">
+        <h3 id="case-title">Real-world case · First American (2019)</h3>
+        <p>First American’s document-sharing app let users change the document ID in a link and open other customers’ documents. The U.S. SEC documented the flaw in its 2021 order. Changing an invoice number in this lab models the same missing access check.</p>
+      </section>
+      <h3>Sources</h3>
+      <ul class="sources">
+        <li><a href="https://community.owasp.org/attacks/insecure_direct_object_reference" target="_blank" rel="noopener">OWASP · IDOR</a></li>
+        <li><a href="https://www.sec.gov/files/litigation/admin/2021/34-92176.pdf" target="_blank" rel="noopener">U.S. SEC · First American order (PDF)</a></li>
+      </ul>
+    </section>
+    <nav class="lab-footer" aria-label="Lab navigation">
+      <a class="text-link" href="./index.html#labs"><span aria-hidden="true">←</span> All labs</a>
+      <a class="text-link" href="./open-redirect.html">Next lab · Open Redirect <span aria-hidden="true">→</span></a>
+    </nav>
+  </main>
+  <footer class="site-footer">
+    <div class="wrap footer-inner">
+      <a class="footer-brand" href="./index.html">Ghurir</a>
+      <span>Browser simulations with sample data.</span>
+    </div>
+  </footer>
+</body>
+</html>
