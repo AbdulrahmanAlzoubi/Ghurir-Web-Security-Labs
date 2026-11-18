@@ -21,6 +21,35 @@ function element(tag, text, className) {
   return node;
 }
 
+function renderExecutableCode() {
+  const samples = securityLabs.codeSamples?.[sandbox.dataset.sandbox];
+  if (!samples) {
+    throw new Error("Missing executable code samples for " + sandbox.dataset.sandbox);
+  }
+
+  for (const code of document.querySelectorAll("[data-executable-code]")) {
+    const source = samples[code.dataset.executableCode];
+    if (typeof source !== "string") {
+      throw new Error("Missing executable code sample: " + code.dataset.executableCode);
+    }
+
+    const highlightedLine = Number(code.dataset.highlightLine);
+    for (const [index, line] of source.split("\n").entries()) {
+      const lineNode = element("span", undefined, "code-line");
+      const lineNumber = element("span", String(index + 1), "line-number");
+      lineNumber.setAttribute("aria-hidden", "true");
+      if (index + 1 === highlightedLine) lineNode.classList.add("highlighted");
+      lineNode.append(
+        lineNumber,
+        element("span", line),
+      );
+      code.append(lineNode);
+    }
+  }
+}
+
+renderExecutableCode();
+
 function renderFacts(facts) {
   const list = element("dl", undefined, "facts");
   for (const [label, value] of facts) {

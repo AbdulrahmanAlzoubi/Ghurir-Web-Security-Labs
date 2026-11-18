@@ -31,7 +31,8 @@
     <a class="back-link" href="./index.html#labs"><span aria-hidden="true">←</span> All labs</a>
     <header class="lab-intro">
       <h1>Insecure Direct Object Reference</h1>
-      <p>IDOR happens when an app uses an ID you supply to look up a record without checking whether you can access it. Changing that ID can reveal somebody else’s record.</p>
+      <h2>What it is</h2>
+      <p>IDOR is an access-control flaw where a record ID is accepted without checking who owns the record. OWASP Top 10:2025 A01, Broken Access Control, includes this risk; the related weakness is CWE-639, Authorization Bypass Through User-Controlled Key.</p>
       <ul class="classification" aria-label="Vulnerability classification">
         <li><a href="https://top10.owasp.org/2025/A01_2025-Broken_Access_Control/" target="_blank" rel="noopener">OWASP A01:2025 Broken Access Control</a></li>
         <li><a href="https://cwe.mitre.org/data/definitions/639.html" target="_blank" rel="noopener">CWE-639</a></li>
@@ -51,7 +52,7 @@
       </div>
       <div class="sandbox-grid">
         <div class="actions-panel">
-          <h3>Payloads</h3>
+          <h3>Attack payloads</h3>
           <button type="button" class="payload-button" data-payload="102" data-selected="false">
             <span class="payload-name">Open invoice #102 <span aria-hidden="true">→</span></span>
             <code>GET /invoices/102</code>
@@ -59,14 +60,6 @@
           <button type="button" class="payload-button" data-payload="103" data-selected="false">
             <span class="payload-name">Open invoice #103 <span aria-hidden="true">→</span></span>
             <code>GET /invoices/103</code>
-          </button>
-          <button type="button" class="payload-button" data-payload="999" data-selected="false">
-            <span class="payload-name">Open a missing invoice <span aria-hidden="true">→</span></span>
-            <code>GET /invoices/999</code>
-          </button>
-          <button type="button" class="payload-button" data-payload="not-a-number" data-selected="false">
-            <span class="payload-name">Send an invalid invoice ID <span aria-hidden="true">→</span></span>
-            <code>GET /invoices/not-a-number</code>
           </button>
           <h3 class="normal-heading">Normal use</h3>
           <button type="button" class="payload-button normal-button" data-payload="101" data-selected="false">
@@ -99,37 +92,16 @@
         <figure class="code-card" data-code-kind="vulnerable">
           <figcaption>
             <h3>Vulnerable code</h3>
-            <p>Returning the record here skips the ownership check. A valid invoice ID is enough to read it.</p>
+            <p>Highlighted line 8 returns any found invoice without checking its owner, so another user’s record is exposed.</p>
           </figcaption>
-          <pre tabindex="0" aria-label="Vulnerable code example"><code><span class="code-line"><span class="line-number" aria-hidden="true">1</span><span>async function viewInvoice(req, res) {</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">2</span><span>  const viewerId = req.session.userId;</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">3</span><span>  const id = Number(req.params.id);</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">4</span><span>  if (!Number.isInteger(id)) {</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">5</span><span>    return res.sendStatus(400);</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">6</span><span>  }</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">7</span><span>  const invoice = await invoices.findById(id);</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">8</span><span>  if (!invoice) return res.sendStatus(404);</span></span>
-        <span class="code-line highlighted"><span class="line-number" aria-hidden="true">9</span><span>  return res.json(invoice);</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">10</span><span>}</span></span></code></pre>
+          <pre tabindex="0" aria-label="Vulnerable code example"><code data-executable-code="vulnerable" data-highlight-line="8"></code></pre>
         </figure>
         <figure class="code-card" data-code-kind="fixed">
           <figcaption>
             <h3>Fixed code</h3>
-            <p>Check who owns the invoice before returning it. The same foreign invoice ID now receives a 403 response.</p>
+            <p>Highlighted line 7 checks ownership; a foreign invoice gets 403, while the viewer’s own invoice still returns.</p>
           </figcaption>
-          <pre tabindex="0" aria-label="Fixed code example"><code><span class="code-line"><span class="line-number" aria-hidden="true">1</span><span>async function viewInvoice(req, res) {</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">2</span><span>  const viewerId = req.session.userId;</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">3</span><span>  const id = Number(req.params.id);</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">4</span><span>  if (!Number.isInteger(id)) {</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">5</span><span>    return res.sendStatus(400);</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">6</span><span>  }</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">7</span><span>  const invoice = await invoices.findById(id);</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">8</span><span>  if (!invoice) return res.sendStatus(404);</span></span>
-        <span class="code-line highlighted"><span class="line-number" aria-hidden="true">9</span><span>  if (invoice.ownerId !== viewerId) {</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">10</span><span>    return res.sendStatus(403);</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">11</span><span>  }</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">12</span><span>  return res.json(invoice);</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">13</span><span>}</span></span></code></pre>
+          <pre tabindex="0" aria-label="Fixed code example"><code data-executable-code="fixed" data-highlight-line="7"></code></pre>
         </figure>
       </div>
     </section>

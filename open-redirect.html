@@ -31,7 +31,8 @@
     <a class="back-link" href="./index.html#labs"><span aria-hidden="true">←</span> All labs</a>
     <header class="lab-intro">
       <h1>Open Redirect</h1>
-      <p>An open redirect happens when an app lets user input control where the browser goes next. A crafted link can start on a trusted site and send visitors to a different one.</p>
+      <h2>What it is</h2>
+      <p>An open redirect lets a user-controlled URL choose where a trusted site sends a visitor. It is covered by OWASP Top 10:2025 A01, Broken Access Control, and classified as CWE-601, URL Redirection to Untrusted Site.</p>
       <ul class="classification" aria-label="Vulnerability classification">
         <li><a href="https://top10.owasp.org/2025/A01_2025-Broken_Access_Control/" target="_blank" rel="noopener">OWASP A01:2025 Broken Access Control</a></li>
         <li><a href="https://cwe.mitre.org/data/definitions/601.html" target="_blank" rel="noopener">CWE-601</a></li>
@@ -51,7 +52,7 @@
       </div>
       <div class="sandbox-grid">
         <div class="actions-panel">
-          <h3>Payloads</h3>
+          <h3>Attack payloads</h3>
           <button type="button" class="payload-button" data-payload="https://external.example/offer" data-selected="false">
             <span class="payload-name">Send an external URL <span aria-hidden="true">→</span></span>
             <code>next=https://external.example/offer</code>
@@ -59,10 +60,6 @@
           <button type="button" class="payload-button" data-payload="//external.example/offer" data-selected="false">
             <span class="payload-name">Send a URL starting with // <span aria-hidden="true">→</span></span>
             <code>next=//external.example/offer</code>
-          </button>
-          <button type="button" class="payload-button" data-payload="http://[" data-selected="false">
-            <span class="payload-name">Send a malformed URL <span aria-hidden="true">→</span></span>
-            <code>next=http://[</code>
           </button>
           <h3 class="normal-heading">Normal use</h3>
           <button type="button" class="payload-button normal-button" data-payload="/account" data-selected="false">
@@ -95,42 +92,16 @@
         <figure class="code-card" data-code-kind="vulnerable">
           <figcaption>
             <h3>Vulnerable code</h3>
-            <p>The redirect uses the next parameter as its destination. A browser treats a value starting with // as another host.</p>
+            <p>Highlighted line 9 puts the unchecked user destination in Location, so a valid external URL is returned.</p>
           </figcaption>
-          <pre tabindex="0" aria-label="Vulnerable code example"><code><span class="code-line"><span class="line-number" aria-hidden="true">1</span><span>const origin = &quot;https://portal.example&quot;;</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">2</span><span>function parseRedirectDestination(value) {</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">3</span><span>  if (typeof value !== &quot;string&quot; || /[\u0000-\u0020\u007f\\]/.test(value)) return null;</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">4</span><span>  try {</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">5</span><span>    const url = new URL(value, origin);</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">6</span><span>    if (url.protocol !== &quot;http:&quot; &amp;&amp; url.protocol !== &quot;https:&quot;) return null;</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">7</span><span>    return url;</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">8</span><span>  } catch { return null; }</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">9</span><span>}</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">10</span><span>function continueTo(req, res) {</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">11</span><span>  const next = req.query.next;</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">12</span><span>  if (!parseRedirectDestination(next)) {</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">13</span><span>    return res.status(400).json({ error: &quot;Invalid redirect destination.&quot; });</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">14</span><span>  }</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">15</span><span>  res.set(&quot;Cache-Control&quot;, &quot;no-store&quot;);</span></span>
-        <span class="code-line highlighted"><span class="line-number" aria-hidden="true">16</span><span>  res.set(&quot;Location&quot;, next);</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">17</span><span>  return res.status(302).json({ message: &quot;Redirect decision recorded.&quot; });</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">18</span><span>}</span></span></code></pre>
+          <pre tabindex="0" aria-label="Vulnerable code example"><code data-executable-code="vulnerable" data-highlight-line="9"></code></pre>
         </figure>
         <figure class="code-card" data-code-kind="fixed">
           <figcaption>
             <h3>Fixed code</h3>
-            <p>Require an exact match against the allowlist of internal routes before issuing the redirect.</p>
+            <p>Highlighted line 3 permits only the exact internal routes, blocking both external payloads while allowing /account.</p>
           </figcaption>
-          <pre tabindex="0" aria-label="Fixed code example"><code><span class="code-line"><span class="line-number" aria-hidden="true">1</span><span>const allowedDestinations = new Set([&quot;/account&quot;, &quot;/help&quot;]);</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">2</span><span>function continueTo(req, res) {</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">3</span><span>  const next = req.query.next;</span></span>
-        <span class="code-line highlighted"><span class="line-number" aria-hidden="true">4</span><span>  if (!allowedDestinations.has(next)) {</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">5</span><span>    return res.status(400).json({ error: &quot;Destination is not in the internal-route allowlist.&quot; });</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">6</span><span>  }</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">7</span><span>  res.set(&quot;Cache-Control&quot;, &quot;no-store&quot;);</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">8</span><span>  res.set(&quot;Location&quot;, next);</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">9</span><span>  return res.status(302).json({ message: &quot;Allowed internal redirect.&quot; });</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">10</span><span>}</span></span></code></pre>
+          <pre tabindex="0" aria-label="Fixed code example"><code data-executable-code="fixed" data-highlight-line="3"></code></pre>
         </figure>
       </div>
     </section>

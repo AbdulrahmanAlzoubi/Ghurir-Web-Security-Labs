@@ -31,7 +31,8 @@
     <a class="back-link" href="./index.html#labs"><span aria-hidden="true">←</span> All labs</a>
     <header class="lab-intro">
       <h1>Race Condition</h1>
-      <p>A race condition can happen when two requests read or update the same state at the same time. In this example, two requests can both see an unused coupon and apply it before either records that it was used.</p>
+      <h2>What it is</h2>
+      <p>A race condition occurs when overlapping operations act on shared state and produce an unintended result. OWASP Top 10:2025 A06, Insecure Design, covers this design risk; CWE-362 describes concurrent execution using shared resources.</p>
       <ul class="classification" aria-label="Vulnerability classification">
         <li><a href="https://top10.owasp.org/2025/A06_2025-Insecure_Design/" target="_blank" rel="noopener">OWASP A06:2025 Insecure Design</a></li>
         <li><a href="https://cwe.mitre.org/data/definitions/362.html" target="_blank" rel="noopener">CWE-362</a></li>
@@ -51,7 +52,7 @@
       </div>
       <div class="sandbox-grid">
         <div class="actions-panel">
-          <h3>Payloads</h3>
+          <h3>Attack payloads</h3>
           <button type="button" class="payload-button" data-payload="pair" data-selected="false">
             <span class="payload-name">Send two together <span aria-hidden="true">→</span></span>
             <code>2 concurrent requests</code>
@@ -91,32 +92,16 @@
         <figure class="code-card" data-code-kind="vulnerable">
           <figcaption>
             <h3>Vulnerable code</h3>
-            <p>The used flag is written after the discount. Another request can pass the check before that write happens.</p>
+            <p>Highlighted line 3 checks state separately from the later discount and claim, so concurrent requests can both pass.</p>
           </figcaption>
-          <pre tabindex="0" aria-label="Vulnerable code example"><code><span class="code-line"><span class="line-number" aria-hidden="true">1</span><span>async function applyCoupon(cartId, code) {</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">2</span><span>  const cart = await store.getCart(cartId);</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">3</span><span>  if (cart.couponUsed) {</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">4</span><span>    return { applied: false };</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">5</span><span>  }</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">6</span><span>  await assertCouponIsValid(code);</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">7</span><span>  await store.addDiscount(cartId, 10);</span></span>
-        <span class="code-line highlighted"><span class="line-number" aria-hidden="true">8</span><span>  await store.markCouponUsed(cartId);</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">9</span><span>  return { applied: true };</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">10</span><span>}</span></span></code></pre>
+          <pre tabindex="0" aria-label="Vulnerable code example"><code data-executable-code="vulnerable" data-highlight-line="3"></code></pre>
         </figure>
         <figure class="code-card" data-code-kind="fixed">
           <figcaption>
             <h3>Fixed code</h3>
-            <p>One conditional update checks and claims the coupon in a single atomic step. Only the request that matches the row applies the discount.</p>
+            <p>Highlighted line 5 checks and claims the coupon in one atomic operation, so only one request can apply the discount.</p>
           </figcaption>
-          <pre tabindex="0" aria-label="Fixed code example"><code><span class="code-line"><span class="line-number" aria-hidden="true">1</span><span>async function applyCoupon(cartId, code) {</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">2</span><span>  await assertCouponIsValid(code);</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">3</span><span>  // UPDATE carts SET coupon_used = true, discount = discount + 10</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">4</span><span>  //   WHERE id = ? AND coupon_used = false</span></span>
-        <span class="code-line highlighted"><span class="line-number" aria-hidden="true">5</span><span>  const claimed = await store.claimCouponAndDiscount(cartId, 10);</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">6</span><span>  if (!claimed) return { applied: false };</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">7</span><span>  return { applied: true };</span></span>
-        <span class="code-line"><span class="line-number" aria-hidden="true">8</span><span>}</span></span></code></pre>
+          <pre tabindex="0" aria-label="Fixed code example"><code data-executable-code="fixed" data-highlight-line="5"></code></pre>
         </figure>
       </div>
     </section>

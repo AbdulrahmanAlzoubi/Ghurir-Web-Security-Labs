@@ -36,40 +36,21 @@ const securityLabs = (() => {
   }
 
   async function viewInvoiceVulnerable(req, invoices, steps) {
-    steps.push("Read invoice ID from request path.");
-    const match = /^\/invoices\/([^/]+)$/.exec(req.path);
-    const idText = match && match[1];
-    if (!idText || !/^\d+$/.test(idText)) {
-      steps.push("Reject ID: it is not an integer.");
-      return makeResponse(400, { error: "Invoice ID must be an integer." });
-    }
-    steps.push("Look up invoice #" + idText + " in the sample store.");
-    const invoice = await invoices.findById(Number(idText));
-    if (!invoice) {
-      steps.push("No matching invoice exists.");
-      return makeResponse(404, { error: "Invoice not found." });
-    }
+    const id = Number(req.resourceId);
+    steps.push("Read invoice ID from the request.");
+    if (!Number.isInteger(id)) return makeResponse(400, { error: "Invalid invoice ID." });
+    const invoice = await invoices.findById(id);
+    if (!invoice) return makeResponse(404, { error: "Invoice not found." });
     steps.push("Return the invoice without checking its owner.");
-    // Vulnerable: returns any matching invoice without checking its owner.
     return makeResponse(200, invoice);
   }
 
   async function viewInvoiceFixed(req, invoices, steps) {
-    steps.push("Read invoice ID from request path.");
-    const match = /^\/invoices\/([^/]+)$/.exec(req.path);
-    const idText = match && match[1];
-    if (!idText || !/^\d+$/.test(idText)) {
-      steps.push("Reject ID: it is not an integer.");
-      return makeResponse(400, { error: "Invoice ID must be an integer." });
-    }
-    steps.push("Look up invoice #" + idText + " in the sample store.");
-    const invoice = await invoices.findById(Number(idText));
-    if (!invoice) {
-      steps.push("No matching invoice exists.");
-      return makeResponse(404, { error: "Invoice not found." });
-    }
-    steps.push("Compare invoice owner with authenticated viewer " + req.session.userId + ".");
-    // Fixed: an authenticated viewer can read only invoices they own.
+    const id = Number(req.resourceId);
+    steps.push("Read invoice ID from the request.");
+    if (!Number.isInteger(id)) return makeResponse(400, { error: "Invalid invoice ID." });
+    const invoice = await invoices.findById(id);
+    if (!invoice) return makeResponse(404, { error: "Invoice not found." });
     if (invoice.ownerId !== req.session.userId) {
       steps.push("Reject request: invoice belongs to " + invoice.ownerId + ".");
       return makeResponse(403, { error: "Forbidden: invoice belongs to another user." });
@@ -112,13 +93,17 @@ const securityLabs = (() => {
     };
   }
 
+  const invoiceCodeSamples = {
+    vulnerable: viewInvoiceVulnerable.toString(),
+    fixed: viewInvoiceFixed.toString(),
+  };
+
   // ---------------------------------------------------------------------------
   // Lab 2 · Open Redirect (CWE-601)
   // ---------------------------------------------------------------------------
   const redirectOrigin = "https://portal.example";
 
   function parseRedirectDestination(value) {
-    if (typeof value !== "string" || /[\u0000-\u0020\u007f\\]/.test(value)) return null;
     try {
       const destination = new URL(value, redirectOrigin);
       if (destination.protocol !== "http:" && destination.protocol !== "https:") return null;
@@ -129,56 +114,53 @@ const securityLabs = (() => {
   }
 
   function continueToVulnerable(req) {
-    const steps = ["Read the next query parameter."];
     const next = req.query.next;
-    if (!parseRedirectDestination(next)) {
-      steps.push("Reject destination: it is not a valid HTTP or HTTPS URL.");
-      return { response: makeResponse(400, { error: "Invalid redirect destination." }, { "Cache-Control": "no-store" }), steps };
+    const destination = parseRedirectDestination(next);
+    if (!destination) {
+      return makeResponse(400, { error: "Invalid redirect destination." }, { "Cache-Control": "no-store" });
     }
-    steps.push("Parse destination as " + parseRedirectDestination(next).href + ".");
-    steps.push("No allowlist check; set Location to the supplied destination.");
-    // Vulnerable: valid external destinations are accepted without an allowlist.
-    return { response: makeResponse(302, { message: "Redirect decision recorded; no navigation occurred." }, {
+    return makeResponse(302, { message: "Redirect decision recorded; no navigation occurred." }, {
       "Cache-Control": "no-store",
       Location: next,
-    }), steps };
+    });
   }
 
   const allowedDestinations = new Set(["/account", "/help"]);
   function continueToFixed(req) {
-    const steps = ["Read the next query parameter."];
     const next = req.query.next;
     if (!allowedDestinations.has(next)) {
-      steps.push("Compare destination with the exact internal-route allowlist.");
-      steps.push("Reject destination: no exact route matched.");
-      return { response: makeResponse(400, {
-        error: "Destination is not in the internal-route allowlist.",
-        allowedDestinations: [...allowedDestinations],
-      }, { "Cache-Control": "no-store" }), steps };
+      return makeResponse(400, { error: "Destination is not in the internal-route allowlist." }, {
+        "Cache-Control": "no-store",
+      });
     }
-    steps.push("Exact allowlist match; set Location to the approved internal route.");
-    return { response: makeResponse(302, { message: "Allowed internal redirect; no navigation occurred." }, {
+    return makeResponse(302, { message: "Allowed internal redirect; no navigation occurred." }, {
       "Cache-Control": "no-store",
       Location: next,
-    }), steps };
+    });
   }
+
+  const redirectCodeSamples = {
+    vulnerable: continueToVulnerable.toString(),
+    fixed: continueToFixed.toString(),
+  };
 
   function simulateRedirect(mode, payload) {
     const next = String(payload);
     const queryString = new URLSearchParams({ next }).toString();
     const request = makeRequest({ method: "GET", path: "/continue", query: { next } });
     const handler = mode === "fixed" ? continueToFixed : continueToVulnerable;
-    const execution = handler(request);
-    const response = execution.response;
+    const response = handler(request);
     const location = response.headers.Location;
     const destination = location ? parseRedirectDestination(location) : null;
     const external = Boolean(destination && destination.origin !== redirectOrigin);
 
     return {
       request,
-      requestLine: "GET /continue?" + queryString,
+      requestLine: "/continue?" + queryString,
       response,
-      events: execution.steps,
+      events: response.status === 400
+        ? ["Read the next query parameter.", "Reject destination."]
+        : ["Read the next query parameter.", "Return simulated Location: " + location + "; no navigation occurs."],
       tone: external ? "exposed" : response.status === 400 ? "blocked" : "allowed",
       status: external ? "External redirect" : response.status === 302 ? "Internal redirect" : "Redirect blocked",
       title: external ? "External redirect returned" : response.status === 302 ? "Internal redirect returned" : "Redirect rejected",
@@ -237,7 +219,7 @@ const securityLabs = (() => {
         note(text) {
           note(request, text);
         },
-        getCart() {
+        getCart(cartId) {
           return io(request, "getCart()", () => ({
             value: { ...cart },
             text: "read couponUsed=" + cart.couponUsed + ", discount " + dollars(cart.discount),
@@ -249,7 +231,7 @@ const securityLabs = (() => {
             text: "coupon " + code + " is valid",
           }));
         },
-        addDiscount(amount) {
+        addDiscount(cartId, amount) {
           return io(request, "addDiscount(" + amount + ")", () => {
             const before = cart.discount;
             cart.discount += amount;
@@ -259,7 +241,7 @@ const securityLabs = (() => {
             };
           });
         },
-        markCouponUsed() {
+        markCouponUsed(cartId) {
           return io(request, "markCouponUsed()", () => {
             const before = cart.couponUsed;
             cart.couponUsed = true;
@@ -271,7 +253,7 @@ const securityLabs = (() => {
         //   UPDATE carts SET coupon_used = true, discount = discount + 10
         //   WHERE id = ? AND coupon_used = false
         // so no other request can run between them.
-        claimCouponAndDiscount(amount) {
+        claimCouponAndDiscount(cartId, amount) {
           return io(request, "claimCouponAndDiscount(" + amount + ")", () => {
             if (cart.couponUsed) {
               return { value: false, text: "0 rows matched (couponUsed is already true), nothing changed" };
@@ -291,46 +273,52 @@ const securityLabs = (() => {
     return { cart, log, run, forRequest };
   }
 
-  async function assertCouponIsValid(store, code) {
-    const coupon = await store.findCoupon(code);
-    if (!coupon || !coupon.valid) throw new Error("Invalid coupon");
+  function createCouponHandlers(store) {
+    async function isValidCoupon(code) {
+      const coupon = await store.findCoupon(code);
+      return Boolean(coupon && coupon.valid);
+    }
+
+    const vulnerable = async function applyCoupon(cartId, code) {
+      const cart = await store.getCart(cartId);
+      if (cart.couponUsed) {
+        return { applied: false, status: 409 };
+      }
+      if (!(await isValidCoupon(code))) {
+        return { applied: false, status: 400 };
+      }
+      await store.addDiscount(cartId, discount);
+      await store.markCouponUsed(cartId);
+      return { applied: true, status: 200, discount };
+    };
+
+    const fixed = async function applyCoupon(cartId, code) {
+      if (!(await isValidCoupon(code))) {
+        return { applied: false, status: 400 };
+      }
+      const claimed = await store.claimCouponAndDiscount(cartId, discount);
+      if (!claimed) {
+        return { applied: false, status: 409 };
+      }
+      return { applied: true, status: 200, discount };
+    };
+
+    return { vulnerable, fixed };
   }
 
-  // Vulnerable: checking coupon state and updating it are separate operations.
-  async function applyCouponVulnerable(store, request) {
-    const cart = await store.getCart();
-    store.note("state check: couponUsed=" + cart.couponUsed);
-    if (cart.couponUsed) {
-      return makeResponse(409, { applied: false, error: "Coupon has already been used." });
-    }
-    try {
-      await assertCouponIsValid(store, request.body.code);
-    } catch {
-      return makeResponse(400, { applied: false, error: "Invalid coupon." });
-    }
-    await store.addDiscount(discount);
-    await store.markCouponUsed();
-    return makeResponse(200, { applied: true, discount: dollars(discount) });
-  }
-
-  // Fixed: the coupon check and claim happen inside one atomic store operation.
-  async function applyCouponFixed(store, request) {
-    try {
-      await assertCouponIsValid(store, request.body.code);
-    } catch {
-      return makeResponse(400, { applied: false, error: "Invalid coupon." });
-    }
-    const claimed = await store.claimCouponAndDiscount(discount);
-    if (!claimed) return makeResponse(409, { applied: false, error: "Coupon has already been used." });
-    return makeResponse(200, { applied: true, discount: dollars(discount) });
-  }
+  const raceConditionCodeSamples = (() => {
+    const handlers = createCouponHandlers(null);
+    return {
+      vulnerable: handlers.vulnerable.toString(),
+      fixed: handlers.fixed.toString(),
+    };
+  })();
 
   const couponAttempts = { normal: 1, pair: 2, triple: 3 };
 
   async function redeemCoupon(mode, payload) {
     const count = couponAttempts[payload];
     const store = createCouponStore();
-    const applyCoupon = mode === "fixed" ? applyCouponFixed : applyCouponVulnerable;
 
     // Start every request before the scheduler runs anything, so they are
     // genuinely in flight at the same time.
@@ -344,7 +332,18 @@ const securityLabs = (() => {
         requestId: name,
       });
       store.log.push(name + " · request created for POST /cart/coupon");
-      return applyCoupon(store.forRequest(name), request).then((result) => {
+      const handlers = createCouponHandlers(store.forRequest(name));
+      const handler = mode === "fixed" ? handlers.fixed : handlers.vulnerable;
+      return handler("cart-1", request.body.code).then((outcome) => {
+        const error = outcome.status === 409
+          ? "Coupon has already been used."
+          : outcome.status === 400
+            ? "Invalid coupon."
+            : undefined;
+        const body = outcome.applied
+          ? { applied: true, discount: dollars(outcome.discount) }
+          : { applied: false, error };
+        const result = makeResponse(outcome.status, body);
         store.log.push(name + " · response " + result.status + " " + statusLabel(result.status));
         return { request, response: result };
       });
@@ -398,5 +397,10 @@ const securityLabs = (() => {
     idor: viewInvoice,
     "open-redirect": simulateRedirect,
     "race-condition": redeemCoupon,
+    codeSamples: {
+      idor: invoiceCodeSamples,
+      "open-redirect": redirectCodeSamples,
+      "race-condition": raceConditionCodeSamples,
+    },
   };
 })();
