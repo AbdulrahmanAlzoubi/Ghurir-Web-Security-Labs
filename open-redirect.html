@@ -32,18 +32,18 @@
     <header class="lab-intro">
       <h1>Open Redirect</h1>
       <h2>What it is</h2>
-      <p>An open redirect lets a user-controlled URL choose where a trusted site sends a visitor. It is covered by OWASP Top 10:2025 A01, Broken Access Control, and classified as CWE-601, URL Redirection to Untrusted Site.</p>
+      <p>An Open Redirect occurs when an application redirects users to an untrusted destination using a URL supplied by the user without properly validating it.</p>
       <ul class="classification" aria-label="Vulnerability classification">
-        <li><a href="https://top10.owasp.org/2025/A01_2025-Broken_Access_Control/" target="_blank" rel="noopener">OWASP A01:2025 Broken Access Control</a></li>
+        <li><a href="https://top10.owasp.org/2025/A01_2025-Broken_Access_Control/" target="_blank" rel="noopener">OWASP A01:2025 – Broken Access Control</a></li>
         <li><a href="https://cwe.mitre.org/data/definitions/601.html" target="_blank" rel="noopener">CWE-601</a></li>
       </ul>
     </header>
 
-    <section class="sandbox" data-sandbox="open-redirect" data-mode="vulnerable" aria-labelledby="try-title">
+    <section class="sandbox" data-sandbox="open-redirect" data-mode="vulnerable" data-hide-events="true" aria-labelledby="try-title">
       <div class="sandbox-header">
         <div>
           <h2 id="try-title">Try it</h2>
-          <p>The demo site is portal.example. The simulated response is displayed here only: it never navigates and sends no backend request.</p>
+          <p>Hypothetical simulation — no requests are sent to 42 Intra.</p>
         </div>
         <div class="mode-picker" role="group" aria-label="Simulation mode">
           <button type="button" data-mode-button="vulnerable" aria-pressed="true">Vulnerable</button>
@@ -52,19 +52,18 @@
       </div>
       <div class="sandbox-grid">
         <div class="actions-panel">
-          <h3>Attack payloads</h3>
-          <button type="button" class="payload-button" data-payload="https://external.example/offer" data-selected="false">
-            <span class="payload-name">Send an external URL <span aria-hidden="true">→</span></span>
-            <code>next=https://external.example/offer</code>
+          <h3>Test Payloads</h3>
+          <button type="button" class="payload-button" data-payload="https://hacker.com/login" data-selected="false">
+            <span class="payload-name">Direct Redirect <span aria-hidden="true">→</span></span>
+            <code>https://hacker.com/login</code>
           </button>
-          <button type="button" class="payload-button" data-payload="//external.example/offer" data-selected="false">
-            <span class="payload-name">Send a URL starting with // <span aria-hidden="true">→</span></span>
-            <code>next=//external.example/offer</code>
+          <button type="button" class="payload-button" data-payload="//hacker.com/login" data-selected="false">
+            <span class="payload-name">Protocol-relative Redirect <span aria-hidden="true">→</span></span>
+            <code>//hacker.com/login</code>
           </button>
-          <h3 class="normal-heading">Normal use</h3>
           <button type="button" class="payload-button normal-button" data-payload="/account" data-selected="false">
-            <span class="payload-name">Go to my account <span aria-hidden="true">→</span></span>
-            <code>next=/account</code>
+            <span class="payload-name">Internal Route <span aria-hidden="true">→</span></span>
+            <code>/account</code>
           </button>
         </div>
         <div class="result-panel" data-response aria-busy="false">
@@ -74,7 +73,7 @@
           </div>
           <div class="result-summary" role="status" aria-live="polite" aria-atomic="true">
             <h4 data-result-title>Run a payload</h4>
-            <p data-result-detail>The request and its outcome will appear here.</p>
+            <p data-result-detail>Vulnerable: Accepts external redirect destinations. Fixed: Allows only approved internal routes.</p>
           </div>
           <div class="request-panel" data-request hidden>
             <h4 data-request-label>Simulated request</h4>
@@ -92,26 +91,26 @@
         <figure class="code-card" data-code-kind="vulnerable">
           <figcaption>
             <h3>Vulnerable code</h3>
-            <p>Highlighted line 9 puts the unchecked user destination in Location, so a valid external URL is returned.</p>
+            <p>Highlighted line 13 puts the unchecked user destination in Location, so a valid external URL is returned.</p>
           </figcaption>
-          <pre tabindex="0" aria-label="Vulnerable code example"><code data-executable-code="vulnerable" data-highlight-line="9"></code></pre>
+          <pre tabindex="0" aria-label="Vulnerable code example"><code data-executable-code="vulnerable" data-highlight-line="13"></code></pre>
         </figure>
         <figure class="code-card" data-code-kind="fixed">
           <figcaption>
             <h3>Fixed code</h3>
-            <p>Highlighted line 3 permits only the exact internal routes, blocking both external payloads while allowing /account.</p>
+            <p>Highlighted line 5 permits only the exact internal routes, blocking both external payloads while allowing /account.</p>
           </figcaption>
-          <pre tabindex="0" aria-label="Fixed code example"><code data-executable-code="fixed" data-highlight-line="3"></code></pre>
+          <pre tabindex="0" aria-label="Fixed code example"><code data-executable-code="fixed" data-highlight-line="5"></code></pre>
         </figure>
       </div>
     </section>
 
     <section class="impact-section" aria-labelledby="impact-title">
       <h2 id="impact-title">Why it matters</h2>
-      <p>A trusted domain in the first URL can make a phishing link look legitimate.</p>
+      <p>An attacker may exploit an unvalidated redirect on a trusted website to send victims to a malicious destination. Because the initial URL contains a familiar domain, victims may be more likely to trust and click the link.</p>
       <section class="case-study" id="real-world-case" aria-labelledby="case-title">
         <h3 id="case-title">Real-world case · Credential phishing campaign (2021)</h3>
-        <p>Microsoft documented a campaign that abused open redirects on legitimate sites. The links started on familiar domains and sent visitors through redirects to fake sign-in pages designed to collect credentials. This lab simulates the change of destination.</p>
+        <p>Microsoft documented a phishing campaign that abused open redirects on legitimate websites. Attackers used trusted domains in their links to make phishing messages appear more legitimate before redirecting victims to fake sign-in pages. This campaign is not presented as involving 42 or Intra.</p>
       </section>
       <h3>Sources</h3>
       <ul class="sources">
