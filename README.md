@@ -24,9 +24,9 @@ All demos are safe, browser-only simulations. They use fictional sample data, ma
 |---|---|---|
 | IDOR · invoice #102 or #103 | Another user's invoice appears | 403 Forbidden and no invoice details |
 | IDOR · own invoice #101 | Invoice appears | Invoice appears |
-| Open Redirect · `https://external.example/offer` | 302 with external Location reported; no navigation | 400 Bad Request |
-| Open Redirect · `//external.example/offer` | 302 with external Location reported; no navigation | 400 Bad Request |
-| Open Redirect · /account | 302 to portal.example/account | 302 to portal.example/account |
+| Open Redirect · `https://hacker.com/login` | 302 with external Location reported; no navigation | 400 Bad Request |
+| Open Redirect · `https://intra.42.fr@hacker.com/login` | 302 with external Location reported; no navigation | 400 Bad Request |
+| Open Redirect · /account | 302 with Location: /account (hypothetical internal route) | 302 with Location: /account (hypothetical internal route) |
 | Race condition · two concurrent requests | 2 discounts and an $80 cart | 1 discount and a $90 cart |
 | Race condition · three concurrent requests | 3 discounts and a $70 cart | 1 discount and a $90 cart |
 | Race condition · one request | 1 discount and a $90 cart | 1 discount and a $90 cart |

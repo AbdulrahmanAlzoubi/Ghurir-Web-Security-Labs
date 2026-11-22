@@ -93,11 +93,17 @@ function showStatus(tone, status, title, detail) {
   resultDetail.textContent = detail;
 }
 
+function idleResultDetail() {
+  return sandbox.dataset.sandbox === "open-redirect"
+    ? "Vulnerable: Accepts external redirect destinations. Fixed: Allows only approved internal routes."
+    : "The request and its outcome will appear here.";
+}
+
 function resetResponse() {
   response.setAttribute("aria-busy", "false");
   request.hidden = true;
   resultData.replaceChildren();
-  showStatus("neutral", "Ready", "Run a payload", "The request and its outcome will appear here.");
+  showStatus("neutral", "Ready", "Run a payload", idleResultDetail());
   for (const button of payloadButtons) button.dataset.selected = "false";
 }
 
@@ -149,10 +155,15 @@ for (const button of payloadButtons) {
       requestLabel.textContent = "Simulated request";
       requestText.textContent = requestLines.join("\n");
       request.hidden = false;
-      showStatus(result.tone, result.status || result.response.status + " " + statusLabel(result.response.status), result.title, result.detail);
+      const detail = sandbox.dataset.sandbox === "open-redirect"
+        ? mode === "fixed"
+          ? "Fixed: Allows only approved internal routes."
+          : "Vulnerable: Accepts external redirect destinations."
+        : result.detail;
+      showStatus(result.tone, result.status || result.response.status + " " + statusLabel(result.response.status), result.title, detail);
       resultData.append(renderExchange(result));
       if (result.facts) resultData.append(renderFacts(result.facts));
-      if (result.events) resultData.append(renderEvents(result.events));
+      if (result.events && sandbox.dataset.hideEvents !== "true") resultData.append(renderEvents(result.events));
     } catch (error) {
       if (run !== currentRun) return;
       console.error(error);

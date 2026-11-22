@@ -101,7 +101,7 @@ const securityLabs = (() => {
   // ---------------------------------------------------------------------------
   // Lab 2 · Open Redirect (CWE-601)
   // ---------------------------------------------------------------------------
-  const redirectOrigin = "https://portal.example";
+  const redirectOrigin = "https://intra.42.fr";
 
   function parseRedirectDestination(value) {
     try {
@@ -113,12 +113,16 @@ const securityLabs = (() => {
     }
   }
 
-  function continueToVulnerable(req) {
+  function continueToVulnerable(req, steps) {
+    steps.push("Read the next query parameter.");
     const next = req.query.next;
     const destination = parseRedirectDestination(next);
+    steps.push("Validate that the value is a parseable redirect URL.");
     if (!destination) {
+      steps.push("Reject an invalid redirect URL with 400 Bad Request.");
       return makeResponse(400, { error: "Invalid redirect destination." }, { "Cache-Control": "no-store" });
     }
+    steps.push("Return a simulated 302 response with the supplied destination in Location.");
     return makeResponse(302, { message: "Redirect decision recorded; no navigation occurred." }, {
       "Cache-Control": "no-store",
       Location: next,
@@ -126,13 +130,17 @@ const securityLabs = (() => {
   }
 
   const allowedDestinations = new Set(["/account", "/help"]);
-  function continueToFixed(req) {
+  function continueToFixed(req, steps) {
+    steps.push("Read the next query parameter.");
     const next = req.query.next;
+    steps.push("Check whether the destination exists in the internal-route allowlist.");
     if (!allowedDestinations.has(next)) {
+      steps.push("Reject an unapproved destination with 400 Bad Request.");
       return makeResponse(400, { error: "Destination is not in the internal-route allowlist." }, {
         "Cache-Control": "no-store",
       });
     }
+    steps.push("Return 302 only for an explicitly allowed internal route.");
     return makeResponse(302, { message: "Allowed internal redirect; no navigation occurred." }, {
       "Cache-Control": "no-store",
       Location: next,
@@ -149,7 +157,8 @@ const securityLabs = (() => {
     const queryString = new URLSearchParams({ next }).toString();
     const request = makeRequest({ method: "GET", path: "/continue", query: { next } });
     const handler = mode === "fixed" ? continueToFixed : continueToVulnerable;
-    const response = handler(request);
+    const events = [];
+    const response = handler(request, events);
     const location = response.headers.Location;
     const destination = location ? parseRedirectDestination(location) : null;
     const external = Boolean(destination && destination.origin !== redirectOrigin);
@@ -158,14 +167,12 @@ const securityLabs = (() => {
       request,
       requestLine: "/continue?" + queryString,
       response,
-      events: response.status === 400
-        ? ["Read the next query parameter.", "Reject destination."]
-        : ["Read the next query parameter.", "Return simulated Location: " + location + "; no navigation occurs."],
+      events,
       tone: external ? "exposed" : response.status === 400 ? "blocked" : "allowed",
       status: external ? "External redirect" : response.status === 302 ? "Internal redirect" : "Redirect blocked",
       title: external ? "External redirect returned" : response.status === 302 ? "Internal redirect returned" : "Redirect rejected",
       detail: external
-        ? "The Location header points outside portal.example. The lab reports it without navigating."
+        ? "The Location header points to " + destination.hostname + ". The lab reports it without navigating."
         : response.status === 302
           ? "The Location header names an explicitly allowed internal route; the lab does not navigate."
           : response.body.error + " The browser would remain on the lab page.",
